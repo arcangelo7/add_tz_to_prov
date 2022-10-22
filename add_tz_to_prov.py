@@ -75,7 +75,7 @@ def add_tz_to_prov(src:str, dst:str, file_format:str, tz_offset:timedelta) -> Co
             archived_files = archive.namelist()
             for archived_file in archived_files:
                 with archive.open(archived_file) as f:
-                    output_path = os.path.join(dst_folder, archived_file)
+                    output_path = os.path.join(dst_folder, archived_file.replace('_', '-').replace(':', '_'))
                     eval(f'add_tz_to_{file_format}(f, tz_offset, output_path)')
         make_archive(base_name=dst_folder, format='zip', root_dir=dst_folder)
         rmtree(dst_folder)
@@ -88,6 +88,6 @@ if __name__ == '__main__': # pragma: no cover
     parser.add_argument('-s', '--src', dest='src', required=True, help='The folder containing the provenance archives')
     parser.add_argument('-d', '--dst', dest='dst', required=True, help='The folder where new archives will be saved')
     parser.add_argument('-f', '--file_format', dest='file_format', required=True, help='The format of files contained in archives')
-    parser.add_argument('-t', '--tz_offst', dest='tz_offst', required=True, type=int, help='An integer representing the UTC offset to be added')
+    parser.add_argument('-t', '--tz_offset', dest='tz_offset', required=True, type=int, help='An integer representing the UTC offset to be added')
     args = parser.parse_args()
     add_tz_to_prov(src=args.src, dst=args.dst, file_format=args.file_format, tz_offset=timedelta(hours=args.tz_offset))
