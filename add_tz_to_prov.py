@@ -51,17 +51,18 @@ def add_tz_to_csv(f:ZipExtFile, tz_offset:timedelta, output_path:str) -> None:
     write_csv(output_path, data)
 
 def add_tz_to_nquads(f:ZipExtFile, tz_offset:timedelta, output_path:str) -> None:
-    cg = ConjunctiveGraph()
-    cg.parse(file=f, format='nquads')
-    for s,p,o,c in cg.quads():
-        if p in {URIRef('http://www.w3.org/ns/prov#generatedAtTime'), URIRef('http://www.w3.org/ns/prov#invalidatedAtTime')}:
-            cg.remove((s,p,o,c))
-            o_tz = Literal(datetime.strptime(str(o), '%Y-%m-%dT%H:%M:%S').replace(tzinfo=timezone(offset=tz_offset)).isoformat(sep='T'), datatype=XSD.dateTime)
-            cg.add((s,p,o_tz,c))
-    sorted_nt_list = to_nt_sorted_list(cg)
-    with open(output_path, 'w') as f:
-        for line in sorted_nt_list:
-            f.write(f"{line}.\n")
+    new_lines = []
+    for line in f:
+        line_str = line.decode('utf8')
+        if 'http://www.w3.org/ns/prov#generatedAtTime' in line_str or 'http://www.w3.org/ns/prov#invalidatedAtTime' in line_str:
+            time_str = re.search('\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', line_str).group(0)
+            time_tz = datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S').replace(tzinfo=timezone(offset=tz_offset)).isoformat(sep='T')
+            new_lines.append(line_str.replace(time_str, time_tz))
+        else:
+            new_lines.append(line_str)        
+    with open(output_path, 'w', encoding='utf8') as f:
+        for line in new_lines:
+            f.write(line)
 
 def add_tz_to_prov(src:str, dst:str, file_format:str, tz_offset:timedelta) -> ConjunctiveGraph:
     filenames = os.listdir(src)
