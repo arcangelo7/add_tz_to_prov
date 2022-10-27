@@ -15,14 +15,11 @@
 
 from csv import DictReader
 from datetime import datetime, timezone
-from support import write_csv
+from support import modify_archive, write_csv
 from io import TextIOWrapper
 from rdflib import ConjunctiveGraph
-from shutil import make_archive, rmtree
-from tqdm import tqdm
-from zipfile import ZipExtFile, ZipFile
+from zipfile import ZipExtFile
 import argparse
-import os
 import pytz
 import re
 
@@ -51,23 +48,7 @@ def add_tz_to_nquads(f:ZipExtFile, output_path:str, zone:str) -> None:
             f.write(line)
 
 def add_tz_to_prov(src:str, dst:str, file_format:str, zone:str) -> ConjunctiveGraph:
-    filenames = os.listdir(src)
-    pbar = tqdm(total=len(filenames))
-    os.makedirs(dst, exist_ok=True)
-    for filename in filenames:
-        dst_folder = os.path.join(dst, os.path.splitext(filename)[0])
-        if not os.path.exists(dst_folder):
-            os.mkdir(dst_folder)
-        with ZipFile(os.path.join(src, filename), 'r') as archive:
-            archived_files = archive.namelist()
-            for archived_file in archived_files:
-                with archive.open(archived_file) as f:
-                    output_path = os.path.join(dst_folder, archived_file.replace('_', '-').replace(':', '_'))
-                    eval(f'add_tz_to_{file_format}(f, output_path, zone)')
-        make_archive(base_name=dst_folder, format='zip', root_dir=dst_folder)
-        rmtree(dst_folder)
-        pbar.update()
-    pbar.close()
+    modify_archive(src, dst, eval(f'add_tz_to_{file_format}'), zone)
 
 def get_utc_time_str(naive_time_str:str, zone:str) -> str:
     """

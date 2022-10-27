@@ -16,11 +16,9 @@
 from csv import DictReader
 from io import TextIOWrapper
 from rdflib import DCTERMS, PROV, RDF, XSD
-from shutil import make_archive, rmtree
-from tqdm import tqdm
-from zipfile import ZipExtFile, ZipFile
+from support import modify_archive
+from zipfile import ZipExtFile
 import argparse
-import os
 
 
 def from_csv_to_nquads(f:ZipExtFile, output_path:str):
@@ -58,24 +56,7 @@ def from_csv_to_nquads(f:ZipExtFile, output_path:str):
             f.write(f'{line}\n')
 
 def convert_provenance(src:str, dst:str, origin_format:str, destination_format:str) -> None:
-    filenames = os.listdir(src)
-    pbar = tqdm(total=len(filenames))
-    os.makedirs(dst, exist_ok=True)
-    for filename in filenames:
-        dst_folder = os.path.join(dst, os.path.splitext(filename)[0])
-        if not os.path.exists(dst_folder):
-            os.mkdir(dst_folder)
-        with ZipFile(os.path.join(src, filename), 'r') as archive:
-            archived_files = archive.namelist()
-            for archived_file in archived_files:
-                with archive.open(archived_file) as f:
-                    output_path = os.path.join(dst_folder, archived_file.replace('_', '-').replace(':', '_'))
-                    eval(f'from_{origin_format}_to_{destination_format}(f, output_path)')
-        make_archive(base_name=dst_folder, format='zip', root_dir=dst_folder)
-        rmtree(dst_folder)
-        pbar.update()
-    pbar.close()
-
+    modify_archive(src, dst, eval(f'from_{origin_format}_to_{destination_format}'))
 
 if __name__ == '__main__': # pragma: no cover
     parser = argparse.ArgumentParser(description='A tool to convert OpenCitations provenance from one format to another')

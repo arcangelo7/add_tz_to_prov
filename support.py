@@ -15,7 +15,11 @@
 
 from typing import List
 from rdflib import ConjunctiveGraph
+from shutil import make_archive, rmtree
+from tqdm import tqdm
+from zipfile import ZipFile
 import csv
+import os
 import re
 
 
@@ -32,3 +36,22 @@ def to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
     nt_list = filter(None, nt_list)
     sorted_nt_list = sorted(nt_list)
     return sorted_nt_list
+
+def modify_archive(src:str, dst:str, func:callable, *args, **kwargs) -> ConjunctiveGraph:
+    filenames = os.listdir(src)
+    pbar = tqdm(total=len(filenames))
+    os.makedirs(dst, exist_ok=True)
+    for filename in filenames:
+        dst_folder = os.path.join(dst, os.path.splitext(filename)[0])
+        if not os.path.exists(dst_folder):
+            os.mkdir(dst_folder)
+        with ZipFile(os.path.join(src, filename), 'r') as archive:
+            archived_files = archive.namelist()
+            for archived_file in archived_files:
+                with archive.open(archived_file) as f:
+                    output_path = os.path.join(dst_folder, archived_file)
+                    func(f, output_path, *args, **kwargs)
+        make_archive(base_name=dst_folder, format='zip', root_dir=dst_folder)
+        rmtree(dst_folder)
+        pbar.update()
+    pbar.close()
