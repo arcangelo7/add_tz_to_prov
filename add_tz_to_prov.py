@@ -15,32 +15,17 @@
 
 from csv import DictReader
 from datetime import datetime, timezone
+from support import write_csv
 from io import TextIOWrapper
 from rdflib import ConjunctiveGraph
 from shutil import make_archive, rmtree
 from tqdm import tqdm
-from typing import List
-from zipfile import ZipFile, ZipExtFile
+from zipfile import ZipExtFile, ZipFile
 import argparse
-import csv
 import os
 import pytz
 import re
 
-
-def to_nt_sorted_list(cg:ConjunctiveGraph) -> list:
-    nt_list = re.split('\s?\.\s?\n+', cg.serialize(format='nquads'))
-    nt_list = filter(None, nt_list)
-    sorted_nt_list = sorted(nt_list)
-    return sorted_nt_list
-
-def write_csv(path:str, datalist:List[dict], fieldnames:list=None) -> None:
-    if datalist:
-        fieldnames = datalist[0].keys() if fieldnames is None else fieldnames
-        with open(path, 'w', newline='', encoding='utf-8') as output_file:
-            dict_writer = csv.DictWriter(f=output_file, fieldnames=fieldnames, delimiter=',')
-            dict_writer.writeheader()
-            dict_writer.writerows(datalist)
 
 def add_tz_to_csv(f:ZipExtFile, output_path:str, zone:str) -> None:
     data = list(DictReader(TextIOWrapper(f)))
