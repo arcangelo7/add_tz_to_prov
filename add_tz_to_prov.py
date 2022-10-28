@@ -63,6 +63,7 @@ def get_utc_time_str(naive_time_str:str, zone:str) -> str:
     local_dt = local.localize(naive)
     return local_dt.astimezone(timezone.utc).isoformat(sep="T")
 
+
 if __name__ == '__main__': # pragma: no cover
     parser = argparse.ArgumentParser(description='Given an OpenCitations provenance dump containing naive time strings in the format "%Y-%m-%dT%H:%M:%S", localise such times with the UTC time zone')
     parser.add_argument('-s', '--src', dest='src', required=True, help='The folder containing the provenance archives')

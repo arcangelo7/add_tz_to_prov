@@ -50,6 +50,5 @@ class test_converter(unittest.TestCase):
         self.assertEqual(output_data, expected_data)
 
 
-
 if __name__ == '__main__': # pragma: no cover
     unittest.main()
