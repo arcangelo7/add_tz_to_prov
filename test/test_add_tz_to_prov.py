@@ -26,7 +26,7 @@ class test_add_tz_to_prov(unittest.TestCase):
             {'oci': '020030106013600000003040504010433060802040603-02005090602361117213725102729370200050208', 'snapshot': '1', 'agent': 'https://w3id.org/oc/index/prov/pa/1', 'source': 'https://api.crossref.org/works/10.3161/000345414x682463', 'created': '2022-06-13T12:58:02+00:00', 'invalidated': '', 'description': 'Creation of the citation', 'update': ''}, 
             {'oci': '020010207020036191222370937063704070563040802-020010104053609040103010137090401030103', 'snapshot': '1', 'agent': 'https://w3id.org/oc/index/prov/pa/1', 'source': 'https://api.crossref.org/works/10.12720/jcm.9.6.475-482', 'created': '2022-06-13T12:58:02+00:00', 'invalidated': '', 'description': 'Creation of the citation', 'update': ''}]
         rmtree(dst)
-        self.assertEqual(output_data, expected_data)
+        self.assertEqual(output_data.sort(key=lambda x: x['oci']), expected_data.sort(key=lambda x: x['oci']))
 
     def test_add_tz_to_prov_nquads(self):
         src = os.path.join('test', 'data', 'nquads')
