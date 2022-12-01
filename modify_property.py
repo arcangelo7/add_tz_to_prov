@@ -14,31 +14,52 @@
 
 import argparse
 import json
-from support import modify_archive
-from zipfile import ZipExtFile
+import os
+import pathlib
+from shutil import copyfile
+from tqdm import tqdm
+from zipfile import ZipFile, ZIP_DEFLATED
 
-def modify_was_attributed_to_in_jsonld(f:ZipExtFile, output_path:str, from_value:str, to_value:str) -> None:
-    data = json.load(f)
-    for i, entity in enumerate(data):
-        graph = entity['@graph']
-        for j, property_value in enumerate(graph):
-            if 'http://www.w3.org/ns/prov#wasAttributedTo' in property_value:
-                was_attributed_to = property_value['http://www.w3.org/ns/prov#wasAttributedTo'][0]['@id']
-                if was_attributed_to == from_value:
-                    data[i]['@graph'][j]['http://www.w3.org/ns/prov#wasAttributedTo'][0]['@id'] = to_value
-    with open(file=output_path, mode='w', encoding='utf8') as output_file:
-        json.dump(data, output_file)
 
-def modify_property(src:str, dst, property_name:str, file_format:str, from_value:str, to_value:str) -> None:
-    modify_archive(src, dst, eval(f'modify_{property_name}_in_{file_format}'), from_value, to_value)
+def modify_was_attributed_to_in_jsonld(src:str, dst:str, from_value:str, to_value:str) -> None:
+    files_to_modify = [os.path.join(dirpath, filename) for dirpath, _, filenames in os.walk(src) for filename in filenames if os.path.basename(dirpath) == 'se' and os.path.splitext(filename)[1] == '.zip']
+    pbar = tqdm(total=len(files_to_modify))
+    for dirpath, _, filenames in os.walk(src):
+        for filename in filenames:
+            input_filepath = os.path.join(dirpath, filename)
+            folders_to_remove = len(src.split(os.sep))
+            output_dir = os.path.join(dst, os.sep.join(pathlib.Path(dirpath).parts[folders_to_remove:]))
+            output_filepath = os.path.join(output_dir, filename)
+            os.makedirs(output_dir, exist_ok=True)
+            if os.path.basename(dirpath) == 'se' and os.path.splitext(filename)[1] == '.zip':
+                with ZipFile(input_filepath, 'r') as archive:
+                    archived_files = archive.namelist()
+                    for archived_file in archived_files:
+                        with archive.open(archived_file) as f:
+                            data = json.load(f)
+                            for i, entity in enumerate(data):
+                                graph = entity['@graph']
+                                for j, property_value in enumerate(graph):
+                                    if 'http://www.w3.org/ns/prov#wasAttributedTo' in property_value:
+                                        was_attributed_to = property_value['http://www.w3.org/ns/prov#wasAttributedTo'][0]['@id']
+                                        if was_attributed_to == from_value:
+                                            data[i]['@graph'][j]['http://www.w3.org/ns/prov#wasAttributedTo'][0]['@id'] = to_value
+                        json_output_filepath = output_filepath.replace('.zip', '.json')
+                        with open(file=json_output_filepath, mode='w', encoding='utf-8') as output_file:
+                            json.dump(data, output_file)
+                        with ZipFile(file=json_output_filepath.replace('.json', '.zip'), mode='w', compression=ZIP_DEFLATED, allowZip64=True) as zf:
+                            zf.write(json_output_filepath, arcname=os.path.basename(json_output_filepath))
+                        os.remove(json_output_filepath)
+            else:
+                copyfile(input_filepath, output_filepath)
+            pbar.update()
+    pbar.close()
 
 if __name__ == '__main__': # pragma: no cover
     parser = argparse.ArgumentParser(description='A tool to replace a property value in OpenCitations provenance with a target value')
     parser.add_argument('-s', '--src', dest='src', required=True, type=str, help='The folder containing the provenance archives')
-    parser.add_argument('-d', '--dst', dest='dst', required=True, type=str, help='The folder where new archives will be saved')
-    parser.add_argument('-p', '--property', dest='property', required=True, type=str, help='The property to be modified')
-    parser.add_argument('-f', '--format', dest='format', required=True, type=str, choices=['jsonld'], help='The source files format')
+    parser.add_argument('-d', '--dst', dest='dst', required=True, help='The root folder where new archives will be saved')
     parser.add_argument('-fv', '--from_value', dest='from_value', required=True, type=str, help='Original value')
     parser.add_argument('-tv', '--to_value', dest='to_value', required=True, type=str, help='Target value')
     args = parser.parse_args()
-    modify_property(args.src, args.dst, args.property, args.format, args.from_value, args.to_value)
+    modify_was_attributed_to_in_jsonld(args.src, args.from_value, args.to_value)
