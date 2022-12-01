@@ -17,43 +17,49 @@ import json
 import os
 import pathlib
 from shutil import copyfile
-from tqdm import tqdm
-from zipfile import ZipFile, ZIP_DEFLATED
+from zipfile import ZIP_DEFLATED, ZipFile
+
+from pebble import ProcessPool
 
 
-def modify_was_attributed_to_in_jsonld(src:str, dst:str, from_value:str, to_value:str) -> None:
-    files_to_modify = [os.path.join(dirpath, filename) for dirpath, _, filenames in os.walk(src) for filename in filenames if os.path.basename(dirpath) == 'se' and os.path.splitext(filename)[1] == '.zip']
-    pbar = tqdm(total=len(files_to_modify))
-    for dirpath, _, filenames in os.walk(src):
-        for filename in filenames:
-            input_filepath = os.path.join(dirpath, filename)
+def run(src:str, dst:str, from_value:str, to_value:str):
+    files_to_modify = [os.path.join(dirpath, filename) for dirpath, _, filenames in os.walk(src) for filename in filenames]
+    with ProcessPool() as executor:
+        for input_filepath in files_to_modify:
+            dirpath = os.path.dirname(input_filepath)
             folders_to_remove = len(src.split(os.sep))
             output_dir = os.path.join(dst, os.sep.join(pathlib.Path(dirpath).parts[folders_to_remove:]))
-            output_filepath = os.path.join(output_dir, filename)
-            os.makedirs(output_dir, exist_ok=True)
-            if os.path.basename(dirpath) == 'se' and os.path.splitext(filename)[1] == '.zip':
-                with ZipFile(input_filepath, 'r') as archive:
-                    archived_files = archive.namelist()
-                    for archived_file in archived_files:
-                        with archive.open(archived_file) as f:
-                            data = json.load(f)
-                            for i, entity in enumerate(data):
-                                graph = entity['@graph']
-                                for j, property_value in enumerate(graph):
-                                    if 'http://www.w3.org/ns/prov#wasAttributedTo' in property_value:
-                                        was_attributed_to = property_value['http://www.w3.org/ns/prov#wasAttributedTo'][0]['@id']
-                                        if was_attributed_to == from_value:
-                                            data[i]['@graph'][j]['http://www.w3.org/ns/prov#wasAttributedTo'][0]['@id'] = to_value
-                        json_output_filepath = output_filepath.replace('.zip', '.json')
-                        with open(file=json_output_filepath, mode='w', encoding='utf-8') as output_file:
-                            json.dump(data, output_file)
-                        with ZipFile(file=json_output_filepath.replace('.json', '.zip'), mode='w', compression=ZIP_DEFLATED, allowZip64=True) as zf:
-                            zf.write(json_output_filepath, arcname=os.path.basename(json_output_filepath))
-                        os.remove(json_output_filepath)
-            else:
-                copyfile(input_filepath, output_filepath)
-            pbar.update()
-    pbar.close()
+            executor.schedule(
+                function=modify_was_attributed_to_in_jsonld, 
+                args=(input_filepath, output_dir, from_value, to_value)) 
+
+def modify_was_attributed_to_in_jsonld(input_filepath, output_dir:str, from_value:str, to_value:str) -> None:
+    dirpath = os.path.dirname(input_filepath)
+    filename = os.path.basename(input_filepath)
+    output_filepath = os.path.join(output_dir, filename)
+    os.makedirs(output_dir, exist_ok=True)
+    if os.path.basename(dirpath) == 'prov' and os.path.splitext(filename)[1] == '.zip':
+        with ZipFile(input_filepath, 'r') as archive:
+            archived_files = archive.namelist()
+            for archived_file in archived_files:
+                with archive.open(archived_file) as f:
+                    data = json.load(f)
+                    for i, entity in enumerate(data):
+                        graph = entity['@graph']
+                        for j, property_value in enumerate(graph):
+                            if 'http://www.w3.org/ns/prov#wasAttributedTo' in property_value:
+                                was_attributed_to = property_value['http://www.w3.org/ns/prov#wasAttributedTo'][0]['@id']
+                                if was_attributed_to == from_value:
+                                    data[i]['@graph'][j]['http://www.w3.org/ns/prov#wasAttributedTo'][0]['@id'] = to_value
+                json_output_filepath = output_filepath.replace('.zip', '.json')
+                with open(file=json_output_filepath, mode='w', encoding='utf-8') as output_file:
+                    json.dump(data, output_file)
+                with ZipFile(file=json_output_filepath.replace('.json', '.zip'), mode='w', compression=ZIP_DEFLATED, allowZip64=True) as zf:
+                    zf.write(json_output_filepath, arcname=os.path.basename(json_output_filepath))
+                os.remove(json_output_filepath)
+    else:
+        copyfile(input_filepath, output_filepath)
+
 
 if __name__ == '__main__': # pragma: no cover
     parser = argparse.ArgumentParser(description='A tool to replace a property value in OpenCitations provenance with a target value')
@@ -62,4 +68,4 @@ if __name__ == '__main__': # pragma: no cover
     parser.add_argument('-fv', '--from_value', dest='from_value', required=True, type=str, help='Original value')
     parser.add_argument('-tv', '--to_value', dest='to_value', required=True, type=str, help='Target value')
     args = parser.parse_args()
-    modify_was_attributed_to_in_jsonld(args.src, args.from_value, args.to_value)
+    run(args.src, args.dst, args.from_value, args.to_value)
